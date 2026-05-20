@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": null,
+  "outputDirectory": null,
+  "rewrites": [
+    { "source": "/api/cron/renewals", "destination": "/api/cron/renewals" },
+    { "source": "/(.*)", "destination": "/api" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/renewals",
+      "schedule": "0 0 * * *"
+    }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/renewals.ts": {
+      "maxDuration": 60
+    }
+  }
+}
