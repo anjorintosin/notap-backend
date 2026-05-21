@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import pg from 'pg';
 import dotenv from 'dotenv';
 import logger from '../shared/utils/logger';
 import { getDatabaseSslDialectOptions } from './database-ssl';
@@ -16,6 +17,7 @@ function baseOptions() {
   const dialectOptions = getDatabaseSslDialectOptions();
   return {
     dialect: 'postgres' as const,
+    dialectModule: pg,
     logging: false,
     pool,
     ...(dialectOptions ? { dialectOptions } : {}),
