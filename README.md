@@ -32,6 +32,30 @@ Your local `.env` is **not** deployed. Add these in **Settings → Environment V
 
 Logs showing `injected env (0) from .env` mean **no variables were loaded** — fix that in the Vercel dashboard.
 
+## Seed the NOTAP admin (production)
+
+**Do not** add seeding to the Vercel **build** command — builds should not write to the database.
+
+### Option A — One-time from your laptop (recommended)
+
+1. Copy `DATABASE_URL` from Vercel → backend project → Settings → Environment Variables.
+2. Run:
+
+```bash
+cd notap-backend
+DATABASE_URL="postgresql://..." npm run seed
+```
+
+Default login (unless overridden): `admin@notap.gov.ng` / `password123`
+
+### Option B — Auto-seed on first API request (Vercel)
+
+1. In Vercel env vars, set `SEED_ADMIN=true` (Production only, for first deploy).
+2. Redeploy, then hit any route (e.g. `/health`) once — bootstrap creates the admin if missing.
+3. Remove `SEED_ADMIN` or set `SEED_ADMIN=false` after the admin exists.
+
+Optional overrides: `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME`.
+
 ## Local dev
 
 ```bash

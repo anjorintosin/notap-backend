@@ -7,6 +7,7 @@ import { CertificateVerificationService } from './shared/services/certificate-ve
 import { RbacService } from './modules/rbac/rbac.service';
 import { UsersService } from './modules/users/users.service';
 import { PaymentsController } from './modules/payments/payments.controller';
+import { ensureDefaultAdmin, shouldSeedAdmin } from './shared/services/admin-seed.service';
 import logger from './shared/utils/logger';
 
 export type BootstrapMode = 'server' | 'serverless';
@@ -45,6 +46,10 @@ export async function runBootstrap(mode: BootstrapMode = 'server'): Promise<void
     await ComplianceFeeService.ensureSettingsRow();
     await RbacService.seedPermissions();
     await RbacService.ensurePlatformRoles();
+
+    if (shouldSeedAdmin()) {
+      await ensureDefaultAdmin();
+    }
 
     const rbacMigrated = await RbacService.migrateUsersWithoutOrgRole();
     if (rbacMigrated > 0) {
