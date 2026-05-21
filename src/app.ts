@@ -2,6 +2,7 @@ import './config/env';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { buildCorsOptions } from './config/cors.config';
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/users.routes';
 import oemsRoutes from './modules/oems/oems.routes';
@@ -23,29 +24,13 @@ import { responseFormatter } from './shared/utils/response-formatter';
 const app = express();
 
 // Middleware
-app.use(helmet());
-
-const corsOrigins = [
-  process.env.FRONTEND_URL,
-  ...(process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()) || []),
-].filter(Boolean) as string[];
-
 app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || process.env.NODE_ENV !== 'production' || corsOrigins.length === 0) {
-        callback(null, true);
-        return;
-      }
-      if (corsOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+app.use(cors(buildCorsOptions()));
+app.options('{*path}', cors(buildCorsOptions()));
 app.use(express.json());
 
 // Routes

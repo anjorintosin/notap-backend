@@ -1,0 +1,79 @@
+import type { CorsOptions } from 'cors';
+
+/** Strip trailing slash so https://app.vercel.app/ matches browser Origin header */
+export function normalizeOrigin(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+export function getAllowedOrigins(): string[] {
+  const fromEnv = [
+    process.env.FRONTEND_URL,
+    ...(process.env.CORS_ORIGINS?.split(',') || []),
+  ]
+    .filter(Boolean)
+    .map((o) => normalizeOrigin(o as string));
+
+  return [...new Set(fromEnv)];
+}
+
+/** Vercel production + preview frontends (*.vercel.app) */
+function isVercelAppOrigin(origin: string): boolean {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return protocol === 'https:' && hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
+function isLocalDevOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+export function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true;
+
+  const normalized = normalizeOrigin(origin);
+  const allowList = getAllowedOrigins();
+
+  if (allowList.includes(normalized)) return true;
+
+  if (process.env.CORS_ALLOW_VERCEL === 'false') {
+    return isLocalDevOrigin(origin) && process.env.NODE_ENV !== 'production';
+  }
+
+  if (isVercelAppOrigin(normalized)) return true;
+
+  if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+export function buildCorsOptions(): CorsOptions {
+  const allowList = getAllowedOrigins();
+
+  return {
+    origin(origin, callback) {
+      if (isOriginAllowed(origin)) {
+        callback(null, origin ?? true);
+        return;
+      }
+      console.warn(
+        `[CORS] Blocked origin: ${origin}. Allowed: ${allowList.join(', ') || '(vercel.app + localhost in dev)'}. Set FRONTEND_URL or CORS_ORIGINS on the API.`
+      );
+      callback(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Disposition'],
+    maxAge: 86400,
+  };
+}
