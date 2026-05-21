@@ -3,6 +3,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import logger from '../shared/utils/logger';
 import { getDatabaseSslDialectOptions } from './database-ssl';
+import { parsePostgresUrl } from './database-url';
 
 dotenv.config();
 
@@ -27,8 +28,14 @@ function baseOptions() {
 function createSequelize(): Sequelize {
   const databaseUrl = process.env.DATABASE_URL;
 
+  // Use discrete fields so dialectOptions.ssl (with ca.pem) is not overridden by URL sslmode
   if (databaseUrl) {
-    return new Sequelize(databaseUrl, baseOptions());
+    const { host, port, database, username, password } = parsePostgresUrl(databaseUrl);
+    return new Sequelize(database, username, password, {
+      host,
+      port,
+      ...baseOptions(),
+    });
   }
 
   const dbHost = process.env.DB_HOST || 'localhost';
@@ -51,7 +58,7 @@ export const connectDB = async () => {
     await sequelize.authenticate();
     const ssl = getDatabaseSslDialectOptions();
     logger.info(
-      `PostgreSQL connected (${ssl ? 'SSL enabled' : 'SSL disabled'})`
+      `PostgreSQL connected (${ssl ? 'SSL with CA' : 'SSL disabled'})`
     );
   } catch (error) {
     logger.error('Unable to connect to the database:', error);
