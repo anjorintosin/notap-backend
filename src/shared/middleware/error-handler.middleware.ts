@@ -2,8 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/app-error';
 import { responseFormatter } from '../utils/response-formatter';
 import logger from '../utils/logger';
+import { isOriginAllowed, normalizeOrigin } from '../../config/cors.config';
+
+function applyCorsOnError(req: Request, res: Response): void {
+  const origin = req.headers.origin;
+  if (typeof origin === 'string' && isOriginAllowed(origin) && !res.getHeader('Access-Control-Allow-Origin')) {
+    res.setHeader('Access-Control-Allow-Origin', normalizeOrigin(origin));
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+}
 
 export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  applyCorsOnError(req, res);
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 

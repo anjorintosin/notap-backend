@@ -38,6 +38,8 @@ function isLocalDevOrigin(origin: string): boolean {
 export function isOriginAllowed(origin: string | undefined): boolean {
   if (!origin) return true;
 
+  if (process.env.CORS_ALLOW_ALL === 'true') return true;
+
   const normalized = normalizeOrigin(origin);
   const allowList = getAllowedOrigins();
 
@@ -49,6 +51,8 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 
   if (isVercelAppOrigin(normalized)) return true;
 
+  if (process.env.VERCEL) return true;
+
   if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(normalized)) {
     return true;
   }
@@ -58,6 +62,17 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 
 export function buildCorsOptions(): CorsOptions {
   const allowList = getAllowedOrigins();
+
+  if (process.env.VERCEL || process.env.CORS_ALLOW_ALL === 'true') {
+    return {
+      origin: true,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+      exposedHeaders: ['Content-Disposition'],
+      maxAge: 86400,
+    };
+  }
 
   return {
     origin(origin, callback) {
@@ -72,7 +87,7 @@ export function buildCorsOptions(): CorsOptions {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     exposedHeaders: ['Content-Disposition'],
     maxAge: 86400,
   };

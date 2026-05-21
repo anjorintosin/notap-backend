@@ -30,7 +30,6 @@ app.use(
   })
 );
 app.use(cors(buildCorsOptions()));
-app.options('{*path}', cors(buildCorsOptions()));
 app.use(express.json());
 
 // Routes
