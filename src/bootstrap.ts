@@ -25,9 +25,61 @@ export function shouldRunQueueWorker(): boolean {
 }
 
 export function shouldSyncAlter(): boolean {
+  if (isServerlessRuntime()) return false;
   if (process.env.DB_SYNC_ALTER === 'true') return true;
   if (process.env.DB_SYNC_ALTER === 'false') return false;
   return process.env.NODE_ENV !== 'production';
+}
+
+export function shouldRunHeavyBootstrap(): boolean {
+  if (process.env.BOOTSTRAP_FULL === 'true') return true;
+  if (process.env.BOOTSTRAP_FULL === 'false') return false;
+  return !isServerlessRuntime();
+}
+
+async function runHeavyStartupTasks(): Promise<void> {
+  await RbacService.ensurePermissionSchema();
+
+  if (shouldSyncAlter()) {
+    await sequelize.sync({ alter: true });
+    await RbacService.ensurePermissionSchema();
+  }
+
+  await ComplianceFeeService.ensureSettingsRow();
+  await RbacService.seedPermissions();
+  await RbacService.ensurePlatformRoles();
+
+  if (shouldSeedAdmin()) {
+    await ensureDefaultAdmin();
+  }
+
+  const rbacMigrated = await RbacService.migrateUsersWithoutOrgRole();
+  if (rbacMigrated > 0) {
+    logger.info(`Assigned default org roles to ${rbacMigrated} user(s)`);
+  }
+
+  const backfilled = await CertificateVerificationService.backfillMissingTokens();
+  if (backfilled > 0) {
+    logger.info(`Backfilled certificate verification tokens for ${backfilled} submission(s)`);
+  }
+
+  const passwordBackfill = await UsersService.backfillPasswordSetAt();
+  if (passwordBackfill > 0) {
+    logger.info(`Backfilled passwordSetAt for ${passwordBackfill} existing user(s)`);
+  }
+
+  const renewalRepaired = await PaymentsController.repairStuckRenewalPayments();
+  if (renewalRepaired > 0) {
+    logger.info(`Completed stuck renewal payment state for ${renewalRepaired} submission(s)`);
+  }
+}
+
+async function runLightStartupTasks(): Promise<void> {
+  await ComplianceFeeService.ensureSettingsRow();
+
+  if (shouldSeedAdmin()) {
+    await ensureDefaultAdmin();
+  }
 }
 
 export async function runBootstrap(mode: BootstrapMode = 'server'): Promise<void> {
@@ -36,50 +88,26 @@ export async function runBootstrap(mode: BootstrapMode = 'server'): Promise<void
   bootstrapPromise = (async () => {
     setupAssociations();
     await sequelize.authenticate();
-    await RbacService.ensurePermissionSchema();
 
-    if (shouldSyncAlter()) {
-      await sequelize.sync({ alter: true });
-      await RbacService.ensurePermissionSchema();
-    }
-
-    await ComplianceFeeService.ensureSettingsRow();
-    await RbacService.seedPermissions();
-    await RbacService.ensurePlatformRoles();
-
-    if (shouldSeedAdmin()) {
-      await ensureDefaultAdmin();
-    }
-
-    const rbacMigrated = await RbacService.migrateUsersWithoutOrgRole();
-    if (rbacMigrated > 0) {
-      logger.info(`Assigned default org roles to ${rbacMigrated} user(s)`);
-    }
-
-    const backfilled = await CertificateVerificationService.backfillMissingTokens();
-    if (backfilled > 0) {
-      logger.info(`Backfilled certificate verification tokens for ${backfilled} submission(s)`);
-    }
-
-    const passwordBackfill = await UsersService.backfillPasswordSetAt();
-    if (passwordBackfill > 0) {
-      logger.info(`Backfilled passwordSetAt for ${passwordBackfill} existing user(s)`);
-    }
-
-    const renewalRepaired = await PaymentsController.repairStuckRenewalPayments();
-    if (renewalRepaired > 0) {
-      logger.info(`Completed stuck renewal payment state for ${renewalRepaired} submission(s)`);
+    const heavy = shouldRunHeavyBootstrap();
+    if (heavy) {
+      await runHeavyStartupTasks();
+    } else {
+      logger.info('Running light bootstrap (serverless / BOOTSTRAP_FULL=false)');
+      await runLightStartupTasks();
     }
 
     if (shouldRunQueueWorker()) {
       startWorker();
-    } else if (mode === 'serverless') {
-      logger.info('Queue worker disabled in serverless mode (set ENABLE_QUEUE_WORKER=true on a dedicated worker if needed)');
+    } else if (mode === 'serverless' || isServerlessRuntime()) {
+      logger.info('Queue worker disabled in serverless mode');
     }
 
     if (mode === 'server' && !isServerlessRuntime()) {
       RenewalService.init();
     }
+
+    logger.info('Bootstrap complete');
   })();
 
   return bootstrapPromise;

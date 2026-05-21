@@ -1,5 +1,7 @@
 import bcrypt from 'bcrypt';
 import User from '../../modules/users/users.model';
+import { Permission } from '../../modules/rbac/permission.model';
+import { RbacService } from '../../modules/rbac/rbac.service';
 import logger from '../utils/logger';
 
 export function shouldSeedAdmin(): boolean {
@@ -25,13 +27,22 @@ export async function ensureDefaultAdmin(): Promise<boolean> {
 
   const passwordHash = await bcrypt.hash(getDefaultAdminPassword(), 10);
 
-  await User.create({
+  const permCount = await Permission.count();
+  if (permCount === 0) {
+    await RbacService.seedPermissions();
+    await RbacService.ensurePlatformRoles();
+  }
+
+  const user = await User.create({
     name: process.env.SEED_ADMIN_NAME || 'NOTAP Administrator',
     email: adminEmail,
     passwordHash,
     role: 'admin',
     isActive: true,
+    passwordSetAt: new Date(),
   });
+
+  await RbacService.assignOwnerRoleToUser(user);
 
   logger.info(`Default admin user created (${adminEmail}). Change the password after first login.`);
   return true;

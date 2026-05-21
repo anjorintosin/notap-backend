@@ -56,6 +56,12 @@ Default login (unless overridden): `admin@notap.gov.ng` / `password123`
 
 Optional overrides: `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME`.
 
+### Vercel cold start / timeout
+
+On Vercel, bootstrap runs in **light** mode (no `sync({ alter })`, no RBAC re-seed on every request). Run `npm run seed` once against production DB, or set `BOOTSTRAP_FULL=true` for a single deploy then remove it.
+
+Do **not** set `DB_SYNC_ALTER=true` on Vercel (causes 60s+ timeouts).
+
 ## Local dev
 
 ```bash

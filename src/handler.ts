@@ -1,12 +1,8 @@
 import app from './app';
-import { isServerlessRuntime, runBootstrap } from './bootstrap';
 
-let ready = false;
-
+/** Express app for Vercel (@vercel/node) and local server. Bootstrap runs via app middleware. */
 export async function getExpressApp() {
-  if (!ready) {
-    await runBootstrap(isServerlessRuntime() ? 'serverless' : 'server');
-    ready = true;
-  }
   return app;
 }
+
+export default app;

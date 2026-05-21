@@ -1,11 +1,9 @@
 import 'pg';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import serverless from 'serverless-http';
+import app from '../src/app';
 import { applyVercelCorsHeaders, handlePreflight } from './cors-headers';
-import { getExpressApp } from '../src/handler';
 
-let handler: ReturnType<typeof serverless> | null = null;
-
+/** Vercel-native Express export — avoids serverless-http hanging on long cold starts */
 export default async function vercelHandler(req: VercelRequest, res: VercelResponse) {
   applyVercelCorsHeaders(req, res);
 
@@ -13,23 +11,5 @@ export default async function vercelHandler(req: VercelRequest, res: VercelRespo
     return;
   }
 
-  try {
-    if (!handler) {
-      const app = await getExpressApp();
-      handler = serverless(app, {
-        binary: ['image/*', 'application/pdf', 'application/octet-stream'],
-      });
-    }
-    return await handler(req, res);
-  } catch (error) {
-    console.error('[api] Unhandled error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({
-        status: 'error',
-        message:
-          error instanceof Error ? error.message : 'Server failed to start. Check DATABASE_URL and Vercel env vars.',
-        statusCode: 500,
-      });
-    }
-  }
+  return app(req, res);
 }

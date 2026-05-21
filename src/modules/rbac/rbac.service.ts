@@ -173,7 +173,10 @@ export class RbacService {
     if (user.role !== 'admin' && !orgId) return;
 
     if (user.role === 'admin') {
-      await this.ensurePlatformRoles();
+      const platformRoleCount = await OrgRole.count({ where: { organizationId: { [Op.is]: null } } });
+      if (platformRoleCount === 0) {
+        await this.ensurePlatformRoles();
+      }
     } else {
       await this.ensureOrgRoles(orgId!, user.role as 'partner' | 'acquirer');
     }

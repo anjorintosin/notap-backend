@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { buildCorsOptions } from './config/cors.config';
+import { isServerlessRuntime, runBootstrap } from './bootstrap';
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/users.routes';
 import oemsRoutes from './modules/oems/oems.routes';
@@ -22,6 +23,21 @@ import { errorHandler } from './shared/middleware/error-handler.middleware';
 import { responseFormatter } from './shared/utils/response-formatter';
 
 const app = express();
+
+let bootstrapReady = false;
+
+app.use(async (req, res, next) => {
+  if (!bootstrapReady) {
+    try {
+      await runBootstrap(isServerlessRuntime() ? 'serverless' : 'server');
+      bootstrapReady = true;
+    } catch (err) {
+      next(err);
+      return;
+    }
+  }
+  next();
+});
 
 // Middleware
 app.use(
