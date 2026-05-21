@@ -22,7 +22,7 @@ If the dashboard forces a build command, use `npm run build` and keep the empty 
 
 Your local `.env` is **not** deployed. Add these in **Settings → Environment Variables** (Production):
 
-- `DATABASE_URL` (or `DB_*` + `DB_SSL=true`)
+- `DATABASE_URL` (or `DB_*` + `DB_SSL=true`) — for **Aiven**, keep `ca.pem` in the repo root (or set `DB_SSL_CA=./ca.pem`)
 - `JWT_SECRET`, `REFRESH_TOKEN_SECRET`
 - `FRONTEND_URL` (your live frontend URL, e.g. `https://notap.vercel.app` — no trailing slash)
 - Optional: `CORS_ORIGINS` (comma-separated extra origins)

@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 
 /** Hosts that require SSL for managed PostgreSQL */
 const SSL_HOST_PATTERNS = [
@@ -12,6 +13,7 @@ const SSL_HOST_PATTERNS = [
   'rds.amazonaws.com',
   'elephantsql.com',
   'aiven.io',
+  'aivencloud.com',
   'cockroachlabs.cloud',
 ];
 
@@ -56,6 +58,27 @@ function parseExplicitSslFlag(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
+/** Resolve Aiven / managed Postgres CA (ca.pem in repo root or DB_SSL_CA env). */
+export function resolveCaCertificate(): string | undefined {
+  const candidates = [
+    process.env.DB_SSL_CA?.trim(),
+    path.join(process.cwd(), 'ca.pem'),
+    path.resolve(__dirname, '../../ca.pem'),
+    path.resolve(__dirname, '../../../ca.pem'),
+  ].filter(Boolean) as string[];
+
+  for (const filePath of candidates) {
+    try {
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, 'utf8');
+      }
+    } catch {
+      // try next path
+    }
+  }
+  return undefined;
+}
+
 export function shouldUseDatabaseSsl(options: {
   databaseUrl?: string;
   host?: string;
@@ -86,22 +109,24 @@ export function getDatabaseSslDialectOptions(): { ssl: Record<string, unknown> }
     return undefined;
   }
 
-  const urlMode = databaseUrl ? parseSslModeFromUrl(databaseUrl) : undefined;
-  const strictVerify =
-    urlMode === 'verify-ca' ||
-    urlMode === 'verify-full' ||
-    process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true';
+  const ca = resolveCaCertificate();
 
-  const ssl: Record<string, unknown> = {
-    require: true,
-    rejectUnauthorized: strictVerify,
-  };
-
-  const caPath = process.env.DB_SSL_CA?.trim();
-  if (caPath) {
-    ssl.ca = fs.readFileSync(caPath, 'utf8');
-    ssl.rejectUnauthorized = true;
+  if (ca) {
+    return {
+      ssl: {
+        require: true,
+        rejectUnauthorized: true,
+        ca,
+      },
+    };
   }
 
-  return { ssl };
+  const strictVerify = process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true';
+
+  return {
+    ssl: {
+      require: true,
+      rejectUnauthorized: strictVerify,
+    },
+  };
 }
