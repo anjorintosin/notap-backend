@@ -1,30 +1,11 @@
 import { Queue, Worker, Job } from 'bullmq';
-import IORedis, { RedisOptions } from 'ioredis';
+import IORedis from 'ioredis';
 import logger from '../shared/utils/logger';
 import { ComplianceService } from '../modules/compliance/compliance.service';
+import { createRedisConnection } from './redis-connection';
 
 let redisConnection: IORedis | null = null;
 let submissionQueue: Queue | null = null;
-
-function createRedisConnection(): IORedis {
-  const redisUrl = process.env.REDIS_URL;
-
-  if (redisUrl) {
-    return new IORedis(redisUrl, { maxRetriesPerRequest: null });
-  }
-
-  const options: RedisOptions = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    maxRetriesPerRequest: null,
-  };
-
-  if (process.env.REDIS_PASSWORD) {
-    options.password = process.env.REDIS_PASSWORD;
-  }
-
-  return new IORedis(options);
-}
 
 function getRedisConnection(): IORedis {
   if (!redisConnection) {
