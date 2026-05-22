@@ -138,6 +138,7 @@ export class AuthController {
           token: inviteToken,
           signupEmail: email,
           organizationId: organization.id,
+          transaction: t,
         });
       }
 

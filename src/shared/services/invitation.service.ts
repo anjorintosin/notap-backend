@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { Organization } from '../../modules/organizations/organizations.model';
 import { Submission } from '../../modules/submissions/submissions.model';
 import { OrganizationInvitation } from '../../modules/invitations/organization-invitations.model';
@@ -259,9 +259,18 @@ export class InvitationService {
     token: string;
     signupEmail: string;
     organizationId: string;
+    transaction?: Transaction;
   }) {
+    const txOpts = opts.transaction ? { transaction: opts.transaction } : {};
+
+    const organization = await Organization.findByPk(opts.organizationId, txOpts);
+    if (!organization) {
+      throw new AppError('Organization not found for invitation acceptance', 400);
+    }
+
     const invitation = await OrganizationInvitation.findOne({
       where: { token: opts.token, status: 'pending' },
+      ...txOpts,
     });
 
     if (!invitation) {
@@ -270,7 +279,7 @@ export class InvitationService {
 
     if (new Date() > invitation.expiresAt) {
       invitation.status = 'expired';
-      await invitation.save();
+      await invitation.save(txOpts);
       throw new AppError('Invitation has expired', 400);
     }
 
@@ -280,25 +289,24 @@ export class InvitationService {
     }
 
     invitation.status = 'accepted';
-    invitation.acceptedOrganizationId = opts.organizationId;
-    await invitation.save();
+    invitation.acceptedOrganizationId = organization.id;
+    await invitation.save(txOpts);
 
     if (invitation.submissionId) {
-      const sub = await Submission.findByPk(invitation.submissionId);
+      const sub = await Submission.findByPk(invitation.submissionId, txOpts);
       if (sub) {
         if (invitation.intendedRole === 'local_partner') {
-          sub.partnerOrganizationId = opts.organizationId;
+          sub.partnerOrganizationId = organization.id;
           sub.invitedPartnerEmail = undefined;
           sub.invitedPartnerName = undefined;
         } else {
-          sub.acquirerOrganizationId = opts.organizationId;
+          sub.acquirerOrganizationId = organization.id;
           sub.invitedAcquirerEmail = undefined;
           sub.invitedAcquirerName = undefined;
-          const org = await Organization.findByPk(opts.organizationId);
-          if (org) sub.acquirerName = org.name;
+          sub.acquirerName = organization.name;
         }
         sub.counterpartyStatus = 'registered';
-        await sub.save();
+        await sub.save(txOpts);
       }
     }
 
