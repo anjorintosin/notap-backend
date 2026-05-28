@@ -449,10 +449,15 @@ export class SubmissionsController {
       const sub = await Submission.findByPk(req.params.id as string);
       if (!sub) return next(new AppError('Submission not found', 404));
 
+      const trimmedComment = String(comment || '').trim();
+      if ((action === 'return' || action === 'reject') && !trimmedComment) {
+        return next(new AppError('A review comment is required when returning or rejecting a submission', 400));
+      }
+
       const renewalReview = isRenewalAwaitingReview(sub);
 
       if (renewalReview) {
-        sub.reviewComment = comment;
+        sub.reviewComment = trimmedComment || undefined;
         if (action === 'approve') {
           sub.renewalStatus = 'pending_payment';
           sub.paymentStatus = 'unpaid';
@@ -470,7 +475,7 @@ export class SubmissionsController {
         }
       } else {
         sub.status = statusMap[action] as any;
-        sub.reviewComment = comment;
+        sub.reviewComment = trimmedComment || undefined;
 
         if (action === 'approve') {
           if (complianceFeeNGN !== undefined && complianceFeeNGN !== null && complianceFeeNGN !== '') {

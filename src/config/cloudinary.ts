@@ -54,15 +54,23 @@ function createDiskStorage(): multer.StorageEngine {
 }
 
 /** Vercel: use Cloudinary (required in prod) or memory; local dev: Cloudinary or ./uploads */
+function sanitizePublicId(originalname: string): string {
+  const base = originalname.replace(/\.[^.]+$/, '');
+  return `${Date.now()}-${base.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80)}`;
+}
+
 export const storage: multer.StorageEngine = cloudinaryConfigured()
   ? new CloudinaryStorage({
       cloudinary,
-      params: async (_req, file) => ({
-        folder: 'notap/agreements',
-        resource_type: 'auto',
-        allowed_formats: ['pdf', 'jpg', 'png', 'docx'],
-        public_id: `${Date.now()}-${file.originalname.split('.')[0]}`,
-      }),
+      params: async (_req, file) => {
+        const ext = (file.originalname.split('.').pop() || '').toLowerCase();
+        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+        return {
+          folder: 'notap/agreements',
+          resource_type: isImage ? 'image' : 'raw',
+          public_id: sanitizePublicId(file.originalname),
+        };
+      },
     })
   : isServerlessRuntime()
     ? multer.memoryStorage()

@@ -11,6 +11,7 @@ export interface OrganizationAttributes {
   contactEmail: string;
   contactPhone?: string;
   status: 'pending' | 'active' | 'suspended' | 'rejected';
+  reviewComment?: string | null;
   transfereeId?: string;
   verificationDocumentUrl?: string;
   createdAt?: Date;
@@ -29,6 +30,7 @@ export class Organization extends Model<OrganizationAttributes, OrganizationCrea
   declare contactEmail: string;
   declare contactPhone?: string;
   declare status: 'pending' | 'active' | 'suspended' | 'rejected';
+  declare reviewComment?: string | null;
   declare transfereeId?: string;
   declare verificationDocumentUrl?: string;
 
@@ -57,6 +59,10 @@ Organization.init(
     },
     sector: {
       type: DataTypes.STRING,
+      allowNull: false,
+    },
+    reviewComment: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     address: {

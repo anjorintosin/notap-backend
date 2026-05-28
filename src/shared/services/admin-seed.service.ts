@@ -40,6 +40,7 @@ export async function ensureDefaultAdmin(): Promise<boolean> {
     role: 'admin',
     isActive: true,
     passwordSetAt: new Date(),
+    emailVerified: true,
   });
 
   await RbacService.assignOwnerRoleToUser(user);

@@ -38,6 +38,15 @@ export class AuthController {
         );
       }
 
+      if (!user.emailVerified && user.role !== 'admin') {
+        return next(
+          new AppError(
+            'Please verify your email address using the link sent to you at registration before signing in.',
+            403,
+          ),
+        );
+      }
+
       // Role-based organization check
       if (user.role !== 'admin' && user.organizationId) {
         const org = (user as any).organization;
@@ -122,15 +131,29 @@ export class AuthController {
       // 2. Hash Password
       const passwordHash = await AuthService.hashPassword(password);
 
+      const skipEmailVerify = Boolean(inviteToken);
+      let verificationToken: string | null = null;
+
+      if (!skipEmailVerify) {
+        verificationToken = crypto.randomBytes(32).toString('hex');
+      }
+
       // 3. Create User
       const user = await User.create({
         name,
         email,
         passwordHash,
-        role: companyType === 'local_partner' ? 'partner' : (companyType as any), 
+        role: companyType === 'local_partner' ? 'partner' : (companyType as any),
         organizationId: organization.id,
         isActive: true,
         passwordSetAt: new Date(),
+        emailVerified: skipEmailVerify,
+        emailVerificationToken: verificationToken
+          ? crypto.createHash('sha256').update(verificationToken).digest('hex')
+          : null,
+        emailVerificationExpires: verificationToken
+          ? new Date(Date.now() + 48 * 3600000)
+          : null,
       }, { transaction: t });
 
       if (inviteToken) {
@@ -143,6 +166,14 @@ export class AuthController {
       }
 
       await t.commit();
+
+      if (verificationToken) {
+        await EmailService.sendEmailVerification({
+          email: user.email,
+          name: user.name,
+          token: verificationToken,
+        });
+      }
 
       await RbacService.ensureOrgRoles(
         organization.id,
@@ -163,11 +194,49 @@ export class AuthController {
           name: organization.name,
           status: organization.status
         }
-      }, 'Registration request submitted successfully. Please wait for NOTAP approval.', 201));
+      }, inviteToken
+        ? 'Registration request submitted successfully. Please wait for NOTAP approval.'
+        : 'Registration submitted. Please check your email to verify your address, then wait for NOTAP approval.',
+        201));
     } catch (error) {
       await t.rollback();
       next(error);
     }
+  }
+
+  static async verifyEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = String(req.body?.token || req.query?.token || '');
+      if (!token) {
+        return next(new AppError('Verification token is required', 400));
+      }
+
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+      const user = await User.findOne({
+        where: {
+          emailVerificationToken: hashedToken,
+          emailVerificationExpires: { [Op.gt]: new Date() },
+        },
+      });
+
+      if (!user) {
+        return next(new AppError('Verification link is invalid or has expired', 400));
+      }
+
+      user.emailVerified = true;
+      user.emailVerificationToken = null;
+      user.emailVerificationExpires = null;
+      await user.save();
+
+      res.json(responseFormatter.success(null, 'Email verified successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async verifyEmailGet(req: Request, res: Response, next: NextFunction) {
+    req.body = { ...req.body, token: req.query.token };
+    return AuthController.verifyEmail(req, res, next);
   }
 
   static async refresh(req: Request, res: Response, next: NextFunction) {
@@ -229,6 +298,7 @@ export class AuthController {
       user.passwordHash = await AuthService.hashPassword(password);
       user.resetPasswordToken = (null as any);
       user.resetPasswordExpires = (null as any);
+      user.emailVerified = true;
       if (!user.passwordSetAt) {
         user.passwordSetAt = new Date();
       }

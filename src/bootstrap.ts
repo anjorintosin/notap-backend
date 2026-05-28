@@ -8,6 +8,8 @@ import { RbacService } from './modules/rbac/rbac.service';
 import { UsersService } from './modules/users/users.service';
 import { PaymentsController } from './modules/payments/payments.controller';
 import { ensureDefaultAdmin, shouldSeedAdmin } from './shared/services/admin-seed.service';
+import { User } from './modules/users/users.model';
+import { Op } from 'sequelize';
 import logger from './shared/utils/logger';
 
 export type BootstrapMode = 'server' | 'serverless';
@@ -71,6 +73,14 @@ async function runHeavyStartupTasks(): Promise<void> {
   const renewalRepaired = await PaymentsController.repairStuckRenewalPayments();
   if (renewalRepaired > 0) {
     logger.info(`Completed stuck renewal payment state for ${renewalRepaired} submission(s)`);
+  }
+
+  const emailBackfill = await User.update(
+    { emailVerified: true },
+    { where: { emailVerified: false, passwordSetAt: { [Op.ne]: null } } },
+  );
+  if (emailBackfill[0] > 0) {
+    logger.info(`Backfilled emailVerified for ${emailBackfill[0]} existing user(s)`);
   }
 }
 

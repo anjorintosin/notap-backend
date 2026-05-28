@@ -4,6 +4,8 @@ import { responseFormatter } from '../../shared/utils/response-formatter';
 import { AuthRequest } from '../../shared/middleware/auth.middleware';
 import { RbacService } from '../rbac/rbac.service';
 import { User } from '../users/users.model';
+import { EmailService } from '../../shared/services/email.service';
+import { AppError } from '../../shared/utils/app-error';
 
 function generateTransfereeId(org: Organization) {
   const year = new Date().getFullYear();
@@ -59,18 +61,49 @@ export class OrganizationsController {
         await RbacService.assignOwnerRoleToUser(u);
       }
 
+      const primaryUser = orgUsers[0];
+      const notifyEmail = primaryUser?.email || org.contactEmail;
+      const notifyName = primaryUser?.name || org.name;
+      if (notifyEmail) {
+        await EmailService.sendRegistrationApproved({
+          email: notifyEmail,
+          name: notifyName,
+          companyName: org.name,
+        });
+      }
+
       res.json(responseFormatter.success(org, 'Organization approved successfully'));
     } catch (error) { next(error); }
   }
 
   static async reject(req: Request, res: Response, next: NextFunction) {
     try {
+      const { comment } = req.body as { comment?: string };
+      const reason = String(comment || '').trim();
+      if (!reason) {
+        return next(new AppError('A rejection comment is required', 400));
+      }
+
       const org = await Organization.findByPk(req.params.id as string);
       if (!org) return res.status(404).json(responseFormatter.error('Organization not found', 404));
-      
+
       org.status = 'rejected';
+      org.reviewComment = reason;
       await org.save();
-      
+
+      const orgUsers = await User.findAll({ where: { organizationId: org.id } });
+      const primaryUser = orgUsers[0];
+      const notifyEmail = primaryUser?.email || org.contactEmail;
+      const notifyName = primaryUser?.name || org.name;
+      if (notifyEmail) {
+        await EmailService.sendRegistrationRejected({
+          email: notifyEmail,
+          name: notifyName,
+          companyName: org.name,
+          reason,
+        });
+      }
+
       res.json(responseFormatter.success(org, 'Organization rejected'));
     } catch (error) { next(error); }
   }

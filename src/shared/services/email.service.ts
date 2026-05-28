@@ -97,7 +97,7 @@ export class EmailService {
   }
 
   static async sendPasswordReset(email: string, token: string) {
-    const resetUrl = `${frontendUrl()}/reset-password?token=${token}`;
+    const resetUrl = `${frontendUrl()}/set-password?token=${token}`;
     const html = `
       <p>You requested a password reset for your NOTAP Compliance account.</p>
       <p><a href="${resetUrl}">Reset your password</a></p>
@@ -113,11 +113,70 @@ export class EmailService {
     return true;
   }
 
-  static async sendWelcomeEmail(email: string, name: string) {
+  static async sendEmailVerification(opts: { email: string; name: string; token: string }) {
+    const verifyUrl = `${frontendUrl()}/verify-email?token=${opts.token}`;
+    const html = `
+      <div style="font-family: sans-serif; max-width: 560px;">
+        <p>Hello <strong>${opts.name}</strong>,</p>
+        <p>Thank you for registering on the NOTAP Compliance Platform. Please verify your email address:</p>
+        <p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">Verify email address</a></p>
+        <p style="font-size:12px;color:#64748b;">Or copy this URL: ${verifyUrl}</p>
+        <p style="font-size:12px;color:#64748b;">This link expires in 48 hours. After verification, your registration will remain pending until NOTAP approves your organisation.</p>
+      </div>
+    `;
+    const sent = await this.sendMail({
+      to: opts.email,
+      subject: 'NOTAP — Verify your email address',
+      html,
+      text: `Verify your email: ${verifyUrl}`,
+    });
+    if (!sent) logger.info(`🔗 Email verification URL: ${verifyUrl}`);
+    return true;
+  }
+
+  static async sendRegistrationApproved(opts: {
+    email: string;
+    name: string;
+    companyName: string;
+  }) {
+    const loginUrl = `${frontendUrl()}/login`;
+    const html = `
+      <div style="font-family: sans-serif; max-width: 560px;">
+        <p>Hello <strong>${opts.name}</strong>,</p>
+        <p>Your registration for <strong>${opts.companyName}</strong> has been <strong>approved</strong> by NOTAP.</p>
+        <p>You may now sign in to the Compliance Platform and begin your technology transfer submissions.</p>
+        <p><a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">Sign in to NOTAP</a></p>
+        <p style="font-size:12px;color:#64748b;">Or copy this URL: ${loginUrl}</p>
+      </div>
+    `;
     return this.sendMail({
-      to: email,
-      subject: 'Welcome to NOTAP Compliance Platform',
-      html: `<p>Hello ${name},</p><p>Your registration has been received and is pending NOTAP approval.</p>`,
+      to: opts.email,
+      subject: 'NOTAP — Your organisation registration has been approved',
+      html,
+      text: `Your registration for ${opts.companyName} was approved. Sign in: ${loginUrl}`,
+    });
+  }
+
+  static async sendRegistrationRejected(opts: {
+    email: string;
+    name: string;
+    companyName: string;
+    reason: string;
+  }) {
+    const html = `
+      <div style="font-family: sans-serif; max-width: 560px;">
+        <p>Hello <strong>${opts.name}</strong>,</p>
+        <p>Your registration request for <strong>${opts.companyName}</strong> was <strong>not approved</strong> at this time.</p>
+        <p><strong>Reason:</strong></p>
+        <p style="background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;">${opts.reason}</p>
+        <p style="font-size:12px;color:#64748b;">If you believe this was in error, contact NOTAP support.</p>
+      </div>
+    `;
+    return this.sendMail({
+      to: opts.email,
+      subject: 'NOTAP — Registration not approved',
+      html,
+      text: `Registration for ${opts.companyName} was not approved. Reason: ${opts.reason}`,
     });
   }
 

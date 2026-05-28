@@ -15,6 +15,9 @@ export interface UserAttributes {
   passwordSetAt?: Date | null;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+  emailVerified?: boolean;
+  emailVerificationToken?: string | null;
+  emailVerificationExpires?: Date | null;
   lastLoginAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
@@ -35,6 +38,9 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
   declare passwordSetAt?: Date | null;
   declare resetPasswordToken?: string;
   declare resetPasswordExpires?: Date;
+  declare emailVerified?: boolean;
+  declare emailVerificationToken?: string | null;
+  declare emailVerificationExpires?: Date | null;
   declare lastLoginAt?: Date;
 
   declare readonly createdAt: Date;
@@ -99,6 +105,19 @@ User.init(
       allowNull: true,
     },
     resetPasswordExpires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    emailVerified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+    emailVerificationToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    emailVerificationExpires: {
       type: DataTypes.DATE,
       allowNull: true,
     },
