@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.get('/conversations', MessagingController.listConversations);
 router.get('/contacts/partners', authorize('admin'), MessagingController.listPartnerContacts);
+router.get('/contacts/acquirers', authorize('admin'), MessagingController.listAcquirerContacts);
 router.get('/contacts/submissions', authorize('admin'), MessagingController.listSubmissionsForMessaging);
 router.post('/conversations/start', MessagingController.startConversation);
 router.post('/conversations', MessagingController.getOrCreateConversation);

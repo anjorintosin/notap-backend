@@ -89,6 +89,7 @@ async function enrichConversations(conversations: Conversation[], currentUserId:
 
     let title = other?.name || 'Conversation';
     if (other?.role === 'partner' && org?.name) title = org.name;
+    if (other?.role === 'acquirer' && org?.name) title = org.name;
     if (other?.role === 'admin') title = 'NOTAP Support';
 
     const subtitle = sub
@@ -157,27 +158,45 @@ export class MessagingController {
 
       let otherUserId = participantId;
 
-      if (authReq.user!.role === 'partner') {
+      if (authReq.user!.role === 'partner' || authReq.user!.role === 'acquirer') {
         const admin = await User.findOne({
           where: { role: 'admin', isActive: true },
           order: [['createdAt', 'ASC']],
         });
         if (!admin) return next(new AppError('No NOTAP administrator available for messaging', 503));
         otherUserId = admin.id;
+
+        if (submissionId) {
+          const sub = await Submission.findByPk(submissionId);
+          if (!sub) return next(new AppError('Submission not found', 404));
+          const orgId = authReq.user!.organizationId;
+          if (authReq.user!.role === 'partner') {
+            if (sub.organizationId !== orgId && sub.partnerOrganizationId !== orgId) {
+              return next(new AppError('You do not have access to this submission', 403));
+            }
+          } else {
+            const canAccess =
+              sub.acquirerOrganizationId === orgId ||
+              (sub.organizationId === orgId && sub.get('createdByRole') === 'acquirer');
+            if (!canAccess) {
+              return next(new AppError('You do not have access to this submission', 403));
+            }
+          }
+        }
       } else if (authReq.user!.role === 'admin') {
         if (!participantId) {
           return next(new AppError('participantId is required', 400));
         }
-        const partner = await User.findByPk(participantId);
-        if (!partner || partner.role !== 'partner') {
-          return next(new AppError('Invalid partner user', 400));
+        const contact = await User.findByPk(participantId);
+        if (!contact || (contact.role !== 'partner' && contact.role !== 'acquirer')) {
+          return next(new AppError('Invalid contact user', 400));
         }
         otherUserId = participantId;
       } else {
         return next(new AppError('Messaging is not available for this role', 403));
       }
 
-      if (submissionId) {
+      if (submissionId && authReq.user!.role === 'admin') {
         const sub = await Submission.findByPk(submissionId);
         if (!sub) return next(new AppError('Submission not found', 404));
       }
@@ -202,7 +221,7 @@ export class MessagingController {
     }
   }
 
-  /** Partner: open NOTAP support thread. Admin: must pass participantId. */
+  /** Partner or acquirer: open NOTAP support thread. Admin: must pass participantId. */
   static async startConversation(req: Request, res: Response, next: NextFunction) {
     return MessagingController.getOrCreateConversation(req, res, next);
   }
@@ -241,6 +260,29 @@ export class MessagingController {
     }
   }
 
+  /** Admin: list acquirer users that can be messaged */
+  static async listAcquirerContacts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const acquirers = await User.findAll({
+        where: { role: 'acquirer', isActive: true },
+        include: [{ model: Organization, as: 'organization', attributes: ['id', 'name'] }],
+        order: [['name', 'ASC']],
+      });
+
+      const contacts = acquirers.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        organizationId: u.organizationId,
+        organizationName: (u as any).organization?.name || '—',
+      }));
+
+      res.json(responseFormatter.success(contacts));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /** Admin: list partner users that can be messaged */
   static async listPartnerContacts(req: Request, res: Response, next: NextFunction) {
     try {
@@ -273,18 +315,33 @@ export class MessagingController {
       }
 
       const subs = await Submission.findAll({
-        where: { organizationId },
-        include: [{ model: Organization, as: 'organization', attributes: ['name'] }],
-        attributes: ['id', 'technology', 'technologyName', 'status', 'organizationId'],
+        where: {
+          [Op.or]: [{ organizationId }, { acquirerOrganizationId: organizationId }],
+        },
+        include: [
+          { model: Organization, as: 'organization', attributes: ['name'] },
+          { model: Organization, as: 'acquirerOrganization', attributes: ['name'] },
+        ],
+        attributes: ['id', 'technology', 'technologyName', 'status', 'organizationId', 'acquirerOrganizationId', 'createdByRole'],
         order: [['submittedDate', 'DESC']],
       });
 
-      const items = subs.map((sub) => ({
-        id: sub.id,
-        technologyName: submissionTechnologyName(sub),
-        localPartnerName: (sub as any).organization?.name || '—',
-        status: sub.get('status'),
-      }));
+      const items = subs.map((sub) => {
+        const partnerOrg = (sub as any).organization as Organization | undefined;
+        const acquirerOrg = (sub as any).acquirerOrganization as Organization | undefined;
+        const createdByRole = sub.get('createdByRole') as string | undefined;
+        const contextLabel =
+          createdByRole === 'acquirer'
+            ? acquirerOrg?.name || partnerOrg?.name || '—'
+            : partnerOrg?.name || acquirerOrg?.name || '—';
+
+        return {
+          id: sub.id,
+          technologyName: submissionTechnologyName(sub),
+          localPartnerName: contextLabel,
+          status: sub.get('status'),
+        };
+      });
 
       res.json(responseFormatter.success(items));
     } catch (error) {
@@ -292,7 +349,7 @@ export class MessagingController {
     }
   }
 
-  /** Start conversation with the partner who owns a submission */
+  /** Start conversation with the partner or acquirer linked to a submission */
   static async conversationForSubmission(req: Request, res: Response, next: NextFunction) {
     const authReq = req as AuthRequest;
     try {
@@ -303,15 +360,33 @@ export class MessagingController {
       const sub = await Submission.findByPk(req.params.submissionId as string);
       if (!sub) return next(new AppError('Submission not found', 404));
 
-      const partnerUser = await User.findOne({
-        where: { organizationId: sub.organizationId, role: 'partner', isActive: true },
-        order: [['createdAt', 'ASC']],
-      });
-      if (!partnerUser) {
-        return next(new AppError('No active partner user found for this submission', 404));
+      const createdByRole = sub.get('createdByRole') as string | undefined;
+      let contactUser: User | null = null;
+
+      if (createdByRole === 'acquirer') {
+        contactUser = await User.findOne({
+          where: { organizationId: sub.organizationId, role: 'acquirer', isActive: true },
+          order: [['createdAt', 'ASC']],
+        });
+      } else {
+        contactUser = await User.findOne({
+          where: { organizationId: sub.organizationId, role: 'partner', isActive: true },
+          order: [['createdAt', 'ASC']],
+        });
       }
 
-      req.body = { participantId: partnerUser.id, submissionId: sub.id };
+      if (!contactUser && sub.acquirerOrganizationId) {
+        contactUser = await User.findOne({
+          where: { organizationId: sub.acquirerOrganizationId, role: 'acquirer', isActive: true },
+          order: [['createdAt', 'ASC']],
+        });
+      }
+
+      if (!contactUser) {
+        return next(new AppError('No active contact user found for this submission', 404));
+      }
+
+      req.body = { participantId: contactUser.id, submissionId: sub.id };
       return MessagingController.getOrCreateConversation(req, res, next);
     } catch (error) {
       next(error);
