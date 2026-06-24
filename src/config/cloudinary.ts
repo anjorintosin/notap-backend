@@ -6,9 +6,7 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
-function isServerlessRuntime(): boolean {
-  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-}
+import { isServerlessRuntime } from './runtime';
 
 function getLocalUploadsDir(): string {
   if (isServerlessRuntime()) {

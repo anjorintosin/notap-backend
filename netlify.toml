@@ -1,0 +1,20 @@
+[build]
+  command = "npm run build"
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["ca.pem"]
+
+[functions.api]
+  timeout = 26
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[build.environment]
+  NODE_VERSION = "22"

@@ -16,11 +16,16 @@ export function getAllowedOrigins(): string[] {
   return [...new Set(fromEnv)];
 }
 
-/** Vercel production + preview frontends (*.vercel.app) */
-function isVercelAppOrigin(origin: string): boolean {
+/** Vercel / Netlify production + preview frontends */
+function isHostedPreviewOrigin(origin: string): boolean {
   try {
     const { hostname, protocol } = new URL(origin);
-    return protocol === 'https:' && hostname.endsWith('.vercel.app');
+    if (protocol !== 'https:') return false;
+    return (
+      hostname.endsWith('.vercel.app') ||
+      hostname.endsWith('.netlify.app') ||
+      hostname.endsWith('.netlify.live')
+    );
   } catch {
     return false;
   }
@@ -49,9 +54,9 @@ export function isOriginAllowed(origin: string | undefined): boolean {
     return isLocalDevOrigin(origin) && process.env.NODE_ENV !== 'production';
   }
 
-  if (isVercelAppOrigin(normalized)) return true;
+  if (isHostedPreviewOrigin(normalized)) return true;
 
-  if (process.env.VERCEL) return true;
+  if (process.env.VERCEL || process.env.NETLIFY) return true;
 
   if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(normalized)) {
     return true;
@@ -63,7 +68,7 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 export function buildCorsOptions(): CorsOptions {
   const allowList = getAllowedOrigins();
 
-  if (process.env.VERCEL || process.env.CORS_ALLOW_ALL === 'true') {
+  if (process.env.VERCEL || process.env.NETLIFY || process.env.CORS_ALLOW_ALL === 'true') {
     return {
       origin: true,
       credentials: true,

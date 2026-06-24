@@ -11,14 +11,13 @@ import { ensureDefaultAdmin, shouldSeedAdmin } from './shared/services/admin-see
 import { User } from './modules/users/users.model';
 import { Op } from 'sequelize';
 import logger from './shared/utils/logger';
+import { isServerlessRuntime } from './config/runtime';
 
 export type BootstrapMode = 'server' | 'serverless';
 
 let bootstrapPromise: Promise<void> | null = null;
 
-export function isServerlessRuntime(): boolean {
-  return Boolean(process.env.VERCEL);
-}
+export { isServerlessRuntime };
 
 export function shouldRunQueueWorker(): boolean {
   if (process.env.ENABLE_QUEUE_WORKER === 'false') return false;

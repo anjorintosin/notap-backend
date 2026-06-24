@@ -3,6 +3,7 @@ import IORedis from 'ioredis';
 import logger from '../shared/utils/logger';
 import { ComplianceService } from '../modules/compliance/compliance.service';
 import { createRedisConnection } from './redis-connection';
+import { isServerlessRuntime } from './runtime';
 
 let redisConnection: IORedis | null = null;
 let submissionQueue: Queue | null = null;
@@ -24,7 +25,7 @@ export function getSubmissionQueue(): Queue {
 function shouldRunQueueWorker(): boolean {
   if (process.env.ENABLE_QUEUE_WORKER === 'false') return false;
   if (process.env.ENABLE_QUEUE_WORKER === 'true') return true;
-  return !process.env.VERCEL;
+  return !isServerlessRuntime();
 }
 
 /** On Vercel (no worker), run compliance inline so submissions still process. */

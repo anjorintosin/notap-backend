@@ -1,0 +1,1 @@
+# Netlify requires a publish directory; API traffic is handled by serverless functions.

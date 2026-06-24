@@ -1,6 +1,18 @@
 # NOTAP Backend
 
-Express API for the NOTAP compliance platform. Deployed on Vercel as serverless functions (`/api`).
+Express API for the NOTAP compliance platform. Deploy on **Netlify** (serverless functions) or Vercel (`/api`).
+
+## Netlify (recommended)
+
+1. Create a site from `git@github-account1:anjorintosin/notap-backend.git`
+2. Build settings are in `netlify.toml` (`npm run build`, functions in `netlify/functions`)
+3. Set environment variables in **Site configuration → Environment variables** (see list below)
+4. Run `npm run seed` once against production `DATABASE_URL` to sync schema + admin
+5. Set `FRONTEND_URL` to your Netlify frontend URL (e.g. `https://notap-frontend.netlify.app`)
+
+API base URL for the frontend: `https://<your-backend-site>.netlify.app/api/v1`
+
+Scheduled renewal checks run via `netlify/functions/scheduled-renewals.ts` (daily). Set `CRON_SECRET` if you trigger manually.
 
 ## Vercel project settings
 
@@ -24,9 +36,9 @@ Your local `.env` is **not** deployed. Add these in **Settings → Environment V
 
 - `DATABASE_URL` (or `DB_*` + `DB_SSL=true`) — for **Aiven**, keep `ca.pem` in the repo root (or set `DB_SSL_CA=./ca.pem`)
 - `JWT_SECRET`, `REFRESH_TOKEN_SECRET`
-- `FRONTEND_URL` (your live frontend URL, e.g. `https://notap.vercel.app` — no trailing slash)
+- `FRONTEND_URL` (your live frontend URL, e.g. `https://notap-frontend.netlify.app` — no trailing slash)
 - Optional: `CORS_ORIGINS` (comma-separated extra origins)
-- CORS allows all `https://*.vercel.app` frontends by default; set `CORS_ALLOW_VERCEL=false` to disable
+- CORS allows `https://*.netlify.app`, `https://*.vercel.app`, and `FRONTEND_URL` by default
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (required for file uploads on serverless)
 - `SMTP_*`, `CRON_SECRET`, etc.
 

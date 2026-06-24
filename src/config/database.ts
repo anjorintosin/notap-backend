@@ -4,11 +4,12 @@ import dotenv from 'dotenv';
 import logger from '../shared/utils/logger';
 import { getDatabaseSslDialectOptions } from './database-ssl';
 import { parsePostgresUrl } from './database-url';
+import { isServerlessRuntime } from './runtime';
 
 dotenv.config();
 
 const pool = {
-  max: 5,
+  max: isServerlessRuntime() ? 1 : 5,
   min: 0,
   acquire: 30000,
   idle: 10000,
