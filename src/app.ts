@@ -20,7 +20,7 @@ import settingsRoutes from './modules/settings/settings.routes';
 import publicRoutes from './modules/public/verification.routes';
 import rbacRoutes from './modules/rbac/rbac.routes';
 import { errorHandler } from './shared/middleware/error-handler.middleware';
-import { ensureParsedJsonBody } from './shared/middleware/parse-body.middleware';
+import { ensureParsedJsonBody, captureRawBody } from './shared/middleware/parse-body.middleware';
 import { responseFormatter } from './shared/utils/response-formatter';
 
 const app = express();
@@ -47,8 +47,26 @@ app.use(
   })
 );
 app.use(cors(buildCorsOptions()));
-app.use(express.json({ limit: '10mb' }));
-app.use(ensureParsedJsonBody);
+
+if (isServerlessRuntime()) {
+  // Netlify/Lambda: read JSON as text then parse (avoids Buffer / base64 issues with express.json)
+  app.use(
+    express.text({
+      limit: '10mb',
+      type: (req) => {
+        const ct = (req.headers['content-type'] || '').toLowerCase();
+        if (ct.includes('multipart/form-data')) return false;
+        if (ct.includes('json')) return true;
+        const method = req.method?.toUpperCase() || 'GET';
+        return method === 'POST' || method === 'PUT' || method === 'PATCH';
+      },
+    }),
+  );
+  app.use(ensureParsedJsonBody);
+} else {
+  app.use(express.json({ limit: '10mb', verify: captureRawBody }));
+  app.use(ensureParsedJsonBody);
+}
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
