@@ -1,30 +1,22 @@
 import sequelize from '../config/database';
 import { setupAssociations } from '../config/associations';
 import logger from '../shared/utils/logger';
-import { ensureDefaultAdmin } from '../shared/services/admin-seed.service';
 import { runSchemaMigrations } from '../shared/db/schema-migrate';
 
-const seedAdmin = async () => {
+async function migrate() {
   try {
     setupAssociations();
     await sequelize.authenticate();
     logger.info('Database connection established.');
 
     await runSchemaMigrations();
-    logger.info('Database schema up to date.');
-
-    const created = await ensureDefaultAdmin();
-    if (!created) {
-      logger.info('Admin user already exists. Skipping seed.');
-    } else {
-      logger.info('Admin user seeded successfully.');
-    }
+    logger.info('Schema migrations complete.');
 
     process.exit(0);
   } catch (error) {
-    logger.error('Error seeding admin user:', error);
+    logger.error('Migration failed:', error);
     process.exit(1);
   }
-};
+}
 
-seedAdmin();
+migrate();

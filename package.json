@@ -10,6 +10,8 @@
     "netlify-build": "npm run build",
     "vercel-build": "npm run build",
     "seed": "ts-node src/scripts/seed.ts",
+    "migrate": "ts-node src/scripts/migrate.ts",
+    "db:migrate": "npm run migrate",
     "test": "jest"
   },
   "keywords": [],

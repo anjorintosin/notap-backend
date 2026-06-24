@@ -86,7 +86,8 @@ Logs showing `injected env (0) from .env` mean **no variables were loaded** — 
 
 ```bash
 cd notap-backend
-DATABASE_URL="postgresql://..." npm run seed
+npm run migrate   # safe schema updates (use this instead of sync alter)
+npm run seed      # migrate + create default admin if missing
 ```
 
 Default login (unless overridden): `admin@notap.gov.ng` / `password123`

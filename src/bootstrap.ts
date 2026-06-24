@@ -12,6 +12,7 @@ import { User } from './modules/users/users.model';
 import { Op } from 'sequelize';
 import logger from './shared/utils/logger';
 import { isServerlessRuntime } from './config/runtime';
+import { runSchemaMigrations } from './shared/db/schema-migrate';
 
 export type BootstrapMode = 'server' | 'serverless';
 
@@ -42,7 +43,7 @@ async function runHeavyStartupTasks(): Promise<void> {
   await RbacService.ensurePermissionSchema();
 
   if (shouldSyncAlter()) {
-    await sequelize.sync({ alter: true });
+    await runSchemaMigrations();
     await RbacService.ensurePermissionSchema();
   }
 
