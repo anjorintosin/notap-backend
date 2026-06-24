@@ -14,6 +14,37 @@ API base URL for the frontend: `https://<your-backend-site>.netlify.app/api/v1`
 
 Scheduled renewal checks run via `netlify/functions/scheduled-renewals.ts` (daily). Set `CRON_SECRET` if you trigger manually.
 
+### Netlify + Aiven Postgres
+
+Set these in **Site configuration → Environment variables**. Scope must include **Functions** (and **Builds** if you run `npm run seed` in CI).
+
+**Option A — single URL (recommended)**
+
+```
+DATABASE_URL=postgres://avnadmin:PASSWORD@pg-xxxx.h.aivencloud.com:27749/defaultdb?sslmode=require
+DB_SSL_CA=./ca.pem
+```
+
+Paste as **one line**, no surrounding quotes, no trailing spaces. Copy fresh from Aiven → PostgreSQL → Connection information → **Service URI**.
+
+**Option B — discrete fields** (use if `DATABASE_URL` still fails on Netlify)
+
+```
+DB_HOST=pg-xxxx.h.aivencloud.com
+DB_PORT=27749
+DB_NAME=defaultdb
+DB_USER=avnadmin
+DB_PASSWORD=your_aiven_password
+DB_SSL=true
+DB_SSL_CA=./ca.pem
+```
+
+Do **not** set `DB_HOST=localhost` on Netlify. Remove `REDIS_HOST=localhost` if present.
+
+After changing env vars: **Deploys → Trigger deploy → Clear cache and deploy**.
+
+`getaddrinfo ENOTFOUND` means the hostname in `DATABASE_URL` / `DB_HOST` cannot be resolved — refresh the URI from Aiven or fix typos/whitespace in Netlify env.
+
 ## Vercel project settings
 
 In **Settings → Build & Development**:

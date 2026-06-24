@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { isServerlessRuntime } from './runtime';
 
 /** Hosts that require SSL for managed PostgreSQL */
 const SSL_HOST_PATTERNS = [
@@ -63,9 +64,14 @@ export function resolveCaCertificate(): string | undefined {
   const candidates = [
     process.env.DB_SSL_CA?.trim(),
     path.join(process.cwd(), 'ca.pem'),
+    path.join('/var/task', 'ca.pem'),
     path.resolve(__dirname, '../../ca.pem'),
     path.resolve(__dirname, '../../../ca.pem'),
   ].filter(Boolean) as string[];
+
+  if (isServerlessRuntime()) {
+    candidates.unshift(path.join('/var/task', 'ca.pem'));
+  }
 
   for (const filePath of candidates) {
     try {

@@ -1,10 +1,16 @@
+import dns from 'dns';
 import { Sequelize } from 'sequelize';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import logger from '../shared/utils/logger';
 import { getDatabaseSslDialectOptions } from './database-ssl';
-import { parsePostgresUrl } from './database-url';
+import { resolveDatabaseConnectionConfig } from './database-url';
 import { isServerlessRuntime } from './runtime';
+
+// Aiven and other managed Postgres endpoints are IPv4; prefer IPv4 on serverless (AWS/Netlify).
+if (isServerlessRuntime() && typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 dotenv.config();
 
@@ -27,27 +33,11 @@ function baseOptions() {
 }
 
 function createSequelize(): Sequelize {
-  const databaseUrl = process.env.DATABASE_URL;
+  const { host, port, database, username, password } = resolveDatabaseConnectionConfig();
 
-  // Use discrete fields so dialectOptions.ssl (with ca.pem) is not overridden by URL sslmode
-  if (databaseUrl) {
-    const { host, port, database, username, password } = parsePostgresUrl(databaseUrl);
-    return new Sequelize(database, username, password, {
-      host,
-      port,
-      ...baseOptions(),
-    });
-  }
-
-  const dbHost = process.env.DB_HOST || 'localhost';
-  const dbPort = parseInt(process.env.DB_PORT || '5432', 10);
-  const dbName = process.env.DB_NAME || 'notap_db';
-  const dbUser = process.env.DB_USER || 'postgres';
-  const dbPassword = process.env.DB_PASSWORD || '';
-
-  return new Sequelize(dbName, dbUser, dbPassword, {
-    host: dbHost,
-    port: dbPort,
+  return new Sequelize(database, username, password, {
+    host,
+    port,
     ...baseOptions(),
   });
 }
