@@ -20,6 +20,7 @@ import settingsRoutes from './modules/settings/settings.routes';
 import publicRoutes from './modules/public/verification.routes';
 import rbacRoutes from './modules/rbac/rbac.routes';
 import { errorHandler } from './shared/middleware/error-handler.middleware';
+import { ensureParsedJsonBody } from './shared/middleware/parse-body.middleware';
 import { responseFormatter } from './shared/utils/response-formatter';
 
 const app = express();
@@ -46,7 +47,8 @@ app.use(
   })
 );
 app.use(cors(buildCorsOptions()));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(ensureParsedJsonBody);
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
